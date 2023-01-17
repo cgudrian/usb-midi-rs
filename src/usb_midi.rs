@@ -1,5 +1,5 @@
 use core::mem::MaybeUninit;
-use defmt::info;
+use defmt::{debug, info};
 use embassy_usb::{Builder, control};
 use embassy_usb::control::{ControlHandler, InResponse, OutResponse, Request};
 use embassy_usb::descriptor::EndpointExtra;
@@ -62,13 +62,17 @@ impl<'a> Control<'a> {
 }
 
 impl<'d> ControlHandler for Control<'d> {
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        debug!("reset");
+    }
 
     fn control_out(&mut self, req: Request, _data: &[u8]) -> OutResponse {
+        debug!("control_out: {}", req);
         OutResponse::Accepted
     }
 
     fn control_in<'a>(&'a mut self, req: Request, buf: &'a mut [u8]) -> InResponse<'a> {
+        debug!("control_in: {}", req);
         InResponse::Accepted(buf)
     }
 }
