@@ -24,14 +24,16 @@ const ENDPOINT_BULK: u8 = 0x02;
 const NUM_MIDI_PORTS: u16 = 1;
 
 pub struct State<'a> {
-    control: MaybeUninit<Control<'a>>,
+    control1: MaybeUninit<Control<'a>>,
+    control2: MaybeUninit<Control<'a>>,
     shared: ControlShared,
 }
 
 impl<'a> State<'a> {
     pub fn new() -> Self {
         Self {
-            control: MaybeUninit::uninit(),
+            control1: MaybeUninit::uninit(),
+            control2: MaybeUninit::uninit(),
             shared: Default::default(),
         }
     }
@@ -79,12 +81,13 @@ impl<'d> ControlHandler for Control<'d> {
 
 impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
     pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
-        let control = state.control.write(Control { shared: &state.shared });
+        let control = state.control1.write(Control { shared: &state.shared });
         let control_shared = &state.shared;
 
         let mut func = builder.function(USB_CLASS_AUDIO, AUDIO_SUBCLASS_AUDIOCONTROL, AUDIO_PROTOCOL_UNDEFINED);
         let mut iface = func.interface();
         iface.handler(control);
+
         let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_AUDIOCONTROL, AUDIO_PROTOCOL_UNDEFINED);
         alt.descriptor(
             CS_INTERFACE,
@@ -99,12 +102,12 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
-        let mut func = builder.function(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
-        let mut intf = func.interface();
-        let mut alt = intf.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
+        let control = state.control2.write(Control { shared: &state.shared });
+        let mut iface = func.interface();
+        iface.handler(control);
 
+        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
         let descriptor_size = 7 + NUM_MIDI_PORTS * (6 + 6 + 9 + 9) + 9 + (4 + NUM_MIDI_PORTS) + 9 + (4 + NUM_MIDI_PORTS);
-
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -116,6 +119,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
+        // MIDI IN Jack Descriptor (Embedded)
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -126,6 +130,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
+        // MIDI Adapter MIDI IN Jack Descriptor (External)
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -136,6 +141,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
+        // MIDI Adapter MIDI OUT Jack Descriptor (Embedded)
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -149,6 +155,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
+        // MIDI Adapter MIDI OUT Jack Descriptor (External)
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -162,13 +169,14 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
+        // Standard Bulk OUT Endpoint Descriptor
         let read_ep = alt.endpoint_bulk_out(64, EndpointExtra::audio(0, 0));
 
         alt.descriptor(
-            CS_INTERFACE,
+            CS_ENDPOINT,
             &[
                 0x01,
-                0x01,
+                NUM_MIDI_PORTS as u8,
                 0x01,
             ],
         );
@@ -176,10 +184,10 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         let write_ep = alt.endpoint_bulk_in(64, EndpointExtra::audio(0, 0));
 
         alt.descriptor(
-            CS_INTERFACE,
+            CS_ENDPOINT,
             &[
                 0x01,
-                0x01,
+                NUM_MIDI_PORTS as u8,
                 0x03,
             ],
         );

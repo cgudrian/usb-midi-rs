@@ -42,6 +42,9 @@ async fn main(_spawner: Spawner) {
     config.device_protocol = 0x00; // unused
     config.max_packet_size_0 = 0x40; // 64 bytes
 
+    config.self_powered = false;
+    config.max_power = 100;
+
     // Create embassy-usb DeviceBuilder using the driver and config.
     // It needs some buffers for building the descriptors.
     let mut device_descriptor = [0; 256];
@@ -68,14 +71,14 @@ async fn main(_spawner: Spawner) {
     let mut usb = builder.build();
     let usb_fut = usb.run();
 
-    let hello_fut = async {
-        loop {
-            info!("Hello World!");
-            Timer::after(Duration::from_secs(1)).await;
-        }
-    };
+    // let hello_fut = async {
+    //     loop {
+    //         info!("Hello World!");
+    //         Timer::after(Duration::from_secs(1)).await;
+    //     }
+    // };
 
     // Run everything concurrently.
     // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    join(usb_fut, hello_fut).await;
+    usb_fut.await;
 }
