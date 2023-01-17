@@ -3,7 +3,7 @@ use defmt::{debug, info};
 use embassy_usb::{Builder, control};
 use embassy_usb::control::{ControlHandler, InResponse, OutResponse, Request};
 use embassy_usb::descriptor::EndpointExtra;
-use embassy_usb::driver::Driver;
+use embassy_usb::driver::{Driver, Endpoint, EndpointError, EndpointIn, EndpointOut};
 use heapless::Vec;
 
 const USB_CLASS_AUDIO: u8 = 0x01;
@@ -216,5 +216,17 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             write_ep,
             control: control_shared,
         }
+    }
+
+    pub async fn read_packet(&mut self, data: &mut [u8]) -> Result<usize, EndpointError> {
+        self.read_ep.read(data).await
+    }
+
+    pub async fn write_packet(&mut self, data: &[u8]) -> Result<(), EndpointError> {
+        self.write_ep.write(data).await
+    }
+
+    pub async fn wait_connection(&mut self) {
+        self.read_ep.wait_enabled().await
     }
 }

@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+use futures::future::join;
 use defmt::{info};
 use embassy_executor::Spawner;
 use embassy_stm32::{Config, interrupt};
@@ -10,7 +11,6 @@ use embassy_stm32::usb_otg::Driver;
 use embassy_time::{Duration, Timer};
 use embassy_usb::Builder;
 use embassy_usb::class::cdc_acm::{State};
-use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -71,14 +71,20 @@ async fn main(_spawner: Spawner) {
     let mut usb = builder.build();
     let usb_fut = usb.run();
 
-    // let hello_fut = async {
-    //     loop {
-    //         info!("Hello World!");
-    //         Timer::after(Duration::from_secs(1)).await;
-    //     }
-    // };
+    let midi_fut = async {
+        loop {
+            let mut buf = [0; 64];
+            midi_class.wait_connection().await;
+            info!("### Connected ###");
+            loop {
+                let cnt = midi_class.read_packet(&mut buf).await.unwrap();
+                info!("### got data: {} ", buf[0..cnt]);
+                let _ = midi_class.write_packet(&[1, 2, 3]).await;
+            }
+        }
+    };
 
     // Run everything concurrently.
     // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    usb_fut.await;
+    join(usb_fut, midi_fut).await;
 }
