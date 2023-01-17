@@ -4,6 +4,7 @@ use embassy_usb::{Builder, control};
 use embassy_usb::control::{ControlHandler, InResponse, OutResponse, Request};
 use embassy_usb::descriptor::EndpointExtra;
 use embassy_usb::driver::Driver;
+use heapless::Vec;
 
 const USB_CLASS_AUDIO: u8 = 0x01;
 const AUDIO_SUBCLASS_AUDIOCONTROL: u8 = 0x01;
@@ -21,7 +22,7 @@ const ENDPOINT_OUT: u8 = 0x01;
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_BULK: u8 = 0x02;
 
-const NUM_MIDI_PORTS: u16 = 1;
+const NUM_MIDI_PORTS: u16 = 8;
 
 pub struct State<'a> {
     control1: MaybeUninit<Control<'a>>,
@@ -108,6 +109,19 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
 
         let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
         let descriptor_size = 7 + NUM_MIDI_PORTS * (6 + 6 + 9 + 9) + 9 + (4 + NUM_MIDI_PORTS) + 9 + (4 + NUM_MIDI_PORTS);
+
+        const ENDPOINT_DATA_SIZE: usize = (2 + NUM_MIDI_PORTS) as usize;
+        let mut output_descriptor_data: Vec<u8, ENDPOINT_DATA_SIZE> = Vec::from_slice(&[
+            0x01,
+            NUM_MIDI_PORTS as u8,
+        ]).unwrap();
+
+        let mut input_descriptor_data: Vec<u8, ENDPOINT_DATA_SIZE> = Vec::from_slice(&[
+            0x1,
+            NUM_MIDI_PORTS as u8,
+        ]).unwrap();
+
+        // Class-specific MS Interface Descriptor
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -119,77 +133,82 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
-        // MIDI IN Jack Descriptor (Embedded)
-        alt.descriptor(
-            CS_INTERFACE,
-            &[
-                0x02,
-                0x01,
-                0x01,
-                0x00,
-            ],
-        );
+        for i in 0..NUM_MIDI_PORTS {
+            let midi_in_embedded = (0x01 + i * 4) as u8;
+            let midi_in_external = (0x02 + i * 4) as u8;
+            let midi_out_embedded = (0x03 + i * 4) as u8;
+            let midi_out_external = (0x04 + i * 4) as u8;
 
-        // MIDI Adapter MIDI IN Jack Descriptor (External)
-        alt.descriptor(
-            CS_INTERFACE,
-            &[
-                0x02,
-                0x02,
-                0x02,
-                0x00,
-            ],
-        );
+            // MIDI IN Jack Descriptor (Embedded)
+            alt.descriptor(
+                CS_INTERFACE,
+                &[
+                    0x02,
+                    0x01,
+                    midi_in_embedded,
+                    0x00,
+                ],
+            );
+            if output_descriptor_data.push(midi_in_embedded).is_err() {
+                panic!("max interface count reached")
+            }
 
-        // MIDI Adapter MIDI OUT Jack Descriptor (Embedded)
-        alt.descriptor(
-            CS_INTERFACE,
-            &[
-                0x03,
-                0x01,
-                0x03,
-                0x01,
-                0x02,
-                0x01,
-                0x00,
-            ],
-        );
+            // MIDI Adapter MIDI IN Jack Descriptor (External)
+            alt.descriptor(
+                CS_INTERFACE,
+                &[
+                    0x02,
+                    0x02,
+                    midi_in_external,
+                    0x00,
+                ],
+            );
 
-        // MIDI Adapter MIDI OUT Jack Descriptor (External)
-        alt.descriptor(
-            CS_INTERFACE,
-            &[
-                0x03,
-                0x02,
-                0x04,
-                0x01,
-                0x01,
-                0x01,
-                0x00,
-            ],
-        );
+            // MIDI Adapter MIDI OUT Jack Descriptor (Embedded)
+            alt.descriptor(
+                CS_INTERFACE,
+                &[
+                    0x03,
+                    0x01,
+                    midi_out_embedded,
+                    0x01,
+                    midi_in_external,
+                    0x01,
+                    0x00,
+                ],
+            );
+            if input_descriptor_data.push(midi_out_embedded).is_err() {
+                panic!("max interface count reached")
+            }
+
+            // MIDI Adapter MIDI OUT Jack Descriptor (External)
+            alt.descriptor(
+                CS_INTERFACE,
+                &[
+                    0x03,
+                    0x02,
+                    midi_out_external,
+                    0x01,
+                    midi_in_embedded,
+                    0x01,
+                    0x00,
+                ],
+            );
+        }
 
         // Standard Bulk OUT Endpoint Descriptor
         let read_ep = alt.endpoint_bulk_out(64, EndpointExtra::audio(0, 0));
 
         alt.descriptor(
             CS_ENDPOINT,
-            &[
-                0x01,
-                NUM_MIDI_PORTS as u8,
-                0x01,
-            ],
+            output_descriptor_data.as_slice(),
         );
 
         let write_ep = alt.endpoint_bulk_in(64, EndpointExtra::audio(0, 0));
 
         alt.descriptor(
             CS_ENDPOINT,
-            &[
-                0x01,
-                NUM_MIDI_PORTS as u8,
-                0x03,
-            ],
+            input_descriptor_data.as_slice(),
         );
 
         UsbMidiClass {

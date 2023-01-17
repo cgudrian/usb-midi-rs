@@ -47,9 +47,9 @@ async fn main(_spawner: Spawner) {
 
     // Create embassy-usb DeviceBuilder using the driver and config.
     // It needs some buffers for building the descriptors.
-    let mut device_descriptor = [0; 256];
-    let mut config_descriptor = [0; 256];
-    let mut bos_descriptor = [0; 256]; // binary object store
+    let mut device_descriptor = [0; 512];
+    let mut config_descriptor = [0; 512];
+    let mut bos_descriptor = [0; 64]; // binary object store
     let mut control_buf = [0; 64];
 
     let mut state = State::new(); // must come before the builder

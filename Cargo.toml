@@ -42,7 +42,7 @@ features = ["defmt"]
 [dependencies.embassy-stm32]
 version = "0.1.0"
 path = "embassy/embassy-stm32"
-features = ["nightly", "unstable-traits", "defmt", "stm32f439zi", "unstable-pac", "memory-x", "time-driver-any", "exti"]
+features = ["nightly", "unstable-traits", "stm32f439zi", "unstable-pac", "memory-x", "time-driver-any", "exti"]
 
 [profile.release]
 debug = 2
