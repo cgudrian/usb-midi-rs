@@ -2,14 +2,14 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use defmt::{dbg, info};
+use defmt::{info};
 use embassy_executor::Spawner;
 use embassy_stm32::{Config, interrupt};
-use embassy_stm32::time::{Hertz, mhz};
+use embassy_stm32::time::{mhz};
 use embassy_stm32::usb_otg::Driver;
 use embassy_time::{Duration, Timer};
 use embassy_usb::Builder;
-use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
+use embassy_usb::class::cdc_acm::{State};
 use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
@@ -50,6 +50,7 @@ async fn main(_spawner: Spawner) {
     let mut control_buf = [0; 64];
 
     let mut state = State::new(); // must come before the builder
+    let mut midi_state = usb_midi::State::new();
 
     let mut builder = Builder::new(
         driver,
@@ -63,10 +64,8 @@ async fn main(_spawner: Spawner) {
     // Create classes on the builder
     // let mut class = CdcAcmClass::new(&mut builder, &mut state, 64);
 
-    let mut midi_state = usb_midi::State::new();
     let mut midi_class = UsbMidiClass::new(&mut builder, &mut midi_state);
     let mut usb = builder.build();
-
     let usb_fut = usb.run();
 
     let hello_fut = async {
