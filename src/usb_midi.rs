@@ -22,7 +22,7 @@ const ENDPOINT_OUT: u8 = 0x01;
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_BULK: u8 = 0x02;
 
-const NUM_MIDI_PORTS: u16 = 8;
+const NUM_MIDI_PORTS: u16 = 2;
 
 pub struct State<'a> {
     control1: MaybeUninit<Control<'a>>,

@@ -78,8 +78,10 @@ async fn main(_spawner: Spawner) {
             info!("### Connected ###");
             loop {
                 let cnt = midi_class.read_packet(&mut buf).await.unwrap();
-                info!("### got data: {} ", buf[0..cnt]);
-                let _ = midi_class.write_packet(&[1, 2, 3]).await;
+                for c in buf[0..cnt].chunks_exact(4) {
+                    info!("### got data: cable:{} cin:{} midi:{}", c[0] >> 4, c[0] & 0xf, c[1..=3]);
+                }
+                let _ = midi_class.write_packet(&[1 << 4 | 9, 147, 53, 124]).await;
             }
         }
     };
