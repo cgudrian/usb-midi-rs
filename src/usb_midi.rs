@@ -1,3 +1,4 @@
+use core::mem::MaybeUninit;
 use defmt::debug;
 
 use embassy_usb::{Builder};
@@ -10,7 +11,6 @@ use heapless::Vec;
 
 const USB_CLASS_AUDIO: u8 = 0x01;
 const AUDIO_SUBCLASS_AUDIOCONTROL: u8 = 0x01;
-const AUDIO_SUBCLASS_AUDIOSTREAMING: u8 = 0x02;
 const AUDIO_SUBCLASS_MIDISTREAMING: u8 = 0x03;
 const AUDIO_PROTOCOL_UNDEFINED: u8 = 0x00;
 
@@ -29,26 +29,34 @@ const JACK_TYPE_EXTERNAL: u8 = 0x02;
 pub const MAX_PACKET_SIZE: u16 = 64;
 const MAX_MIDI_INTERFACE_COUNT: u8 = 8;
 
-pub struct Handler {}
+pub struct Control {
+    string_offset: u8,
+}
 
-impl Handler {
+pub struct State {
+    control: MaybeUninit<Control>,
+}
+
+impl State {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            control: MaybeUninit::uninit(),
+        }
     }
 }
 
-impl ControlHandler for Handler {
-    fn get_string(&mut self, index: StringIndex, lang_id: u16) -> Option<&str> {
-        debug!("get_string index={} lang_id={}", index, lang_id);
-        match index.into() {
-            1 => Some("Eins"),
-            2 => Some("Zwei"),
-            3 => Some("Drei"),
-            4 => Some("Vier"),
-            5 => Some("Fünf"),
-            6 => Some("Sechs"),
-            7 => Some("Sieben"),
-            8 => Some("Acht"),
+impl ControlHandler for Control {
+    fn get_string(&mut self, index: StringIndex, _lang_id: u16) -> Option<&str> {
+        let index: u8 = index.into();
+        match index - self.string_offset {
+            0 => Some("Port 1"),
+            1 => Some("Port 2"),
+            2 => Some("Port 3"),
+            3 => Some("Port 4"),
+            4 => Some("Port 5"),
+            5 => Some("Port 6"),
+            6 => Some("Port 7"),
+            7 => Some("Port 8"),
             _ => None,
         }
     }
@@ -60,7 +68,7 @@ pub struct UsbMidiClass<'d, D: Driver<'d>, const N: usize> {
 }
 
 impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
-    pub fn new(builder: &mut Builder<'d, D>, handler: &'d mut Handler) -> Self {
+    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State) -> Self {
         assert!(N > 0, "interface count must be at least 1");
         assert!(N <= MAX_MIDI_INTERFACE_COUNT as usize, "interface count must not be greater than 8");
 
@@ -70,7 +78,11 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
         // AudioControl Interface
         //
         let mut iface = func.interface();
-        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_AUDIOCONTROL, AUDIO_PROTOCOL_UNDEFINED, Some(7.into()));
+        let mut alt = iface.alt_setting(
+            USB_CLASS_AUDIO,
+            AUDIO_SUBCLASS_AUDIOCONTROL,
+            AUDIO_PROTOCOL_UNDEFINED,
+        );
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -88,17 +100,24 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
         // MIDIStreaming Interface
         //
         let mut iface = func.interface();
-        iface.handler(handler);
 
-        // reserve string indices for jack names
+        // reserve string indices for port names
         let mut port_names = [0u8; N];
         for idx in &mut port_names {
             *idx = iface.string().into();
         }
 
-        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED, Some(6.into()));
+        let control = state.control.write(Control { string_offset: port_names[0] });
+        iface.handler(control);
+
+        let mut alt = iface.alt_setting(
+            USB_CLASS_AUDIO,
+            AUDIO_SUBCLASS_MIDISTREAMING,
+            AUDIO_PROTOCOL_UNDEFINED,
+        );
 
         // Class-specific MS Interface Descriptor
+        // TODO: This is ugly as hell. I do not want to count bytes.
         let total_cs_descriptor_length = 7 + (N as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (N as u16)) + 9 + (4 + (N as u16));
         alt.descriptor(
             CS_INTERFACE,
@@ -181,13 +200,19 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
         }
 
         // Standard Bulk OUT Endpoint Descriptor
-        let read_ep = alt.endpoint_bulk_out(MAX_PACKET_SIZE, EndpointExtra::audio(0, 0));
+        let read_ep = alt.endpoint_bulk_out(
+            MAX_PACKET_SIZE,
+            EndpointExtra::audio(0, 0)
+        );
         alt.descriptor(
             CS_ENDPOINT,
             output_descriptor.as_slice(),
         );
 
-        let write_ep = alt.endpoint_bulk_in(MAX_PACKET_SIZE, EndpointExtra::audio(0, 0));
+        let write_ep = alt.endpoint_bulk_in(
+            MAX_PACKET_SIZE,
+            EndpointExtra::audio(0, 0)
+        );
         alt.descriptor(
             CS_ENDPOINT,
             input_descriptor.as_slice(),

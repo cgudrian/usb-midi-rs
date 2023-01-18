@@ -13,7 +13,7 @@ use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
 
-use crate::usb_midi::{Handler, UsbMidiClass};
+use crate::usb_midi::{Control, State, UsbMidiClass};
 
 mod usb_midi;
 
@@ -23,7 +23,7 @@ struct UsbDeviceBuilder {
     bos_descriptor: [u8; 64],
     control_buf: [u8; 64],
     ep_out_buffer: [u8; 256],
-    handler: Handler,
+    state: State,
 }
 
 impl UsbDeviceBuilder {
@@ -40,7 +40,7 @@ impl UsbDeviceBuilder {
             bos_descriptor,
             control_buf,
             ep_out_buffer,
-            handler: Handler::new(),
+            state: State::new(),
         }
     }
 
@@ -79,7 +79,7 @@ impl UsbDeviceBuilder {
             None,
         );
 
-        let midi_class = UsbMidiClass::new(&mut builder, &mut self.handler);
+        let midi_class = UsbMidiClass::new(&mut builder, &mut self.state);
         let usb_device = builder.build();
 
         (midi_class, usb_device)
