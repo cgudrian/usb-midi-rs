@@ -107,6 +107,8 @@ async fn main(_spawner: Spawner) {
         p.PA11,
     );
 
+    let cables = midi_class.split_cables();
+
     let usb_fut = usb.run();
 
     let midi_fut = async {

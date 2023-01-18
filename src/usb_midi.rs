@@ -210,8 +210,10 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
     pub async fn wait_connection(&mut self) {
         self.read_ep.wait_enabled().await
     }
+}
 
-    pub fn split_cables(&mut self) -> [u8; N] {
-        [0; N]
+impl<'d, D: Driver<'d>> UsbMidiClass<'d, D, 2> {
+    pub fn split_cables(&self) -> (u8, u8) {
+        (1, 2)
     }
 }
