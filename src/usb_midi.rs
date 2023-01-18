@@ -1,8 +1,8 @@
-use core::mem::MaybeUninit;
 
-use defmt::{debug, info};
-use embassy_usb::{Builder, control};
-use embassy_usb::control::{ControlHandler, InResponse, OutResponse, Request};
+
+
+use embassy_usb::{Builder};
+
 use embassy_usb::descriptor::EndpointExtra;
 use embassy_usb::driver::{Driver, Endpoint, EndpointError, EndpointIn, EndpointOut};
 use heapless::Vec;
@@ -25,7 +25,7 @@ const MS_GENERAL: u8 = 0x01;
 const JACK_TYPE_EMBEDDED: u8 = 0x01;
 const JACK_TYPE_EXTERNAL: u8 = 0x02;
 
-const MAX_PACKET_SIZE: u16 = 64;
+pub const MAX_PACKET_SIZE: u16 = 64;
 const MAX_MIDI_INTERFACE_COUNT: u8 = 8;
 
 pub struct UsbMidiClass<'d, D: Driver<'d>> {
@@ -34,9 +34,9 @@ pub struct UsbMidiClass<'d, D: Driver<'d>> {
 }
 
 impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
-    pub fn new<const INTF_COUNT: u8>(builder: &mut Builder<'d, D>) -> Self {
-        assert!(INTF_COUNT > 0, "interface count must be at least 1");
-        assert!(INTF_COUNT <= MAX_MIDI_INTERFACE_COUNT, "interface count must not be greater than 8");
+    pub fn new<const INTERFACE_COUNT: u8>(builder: &mut Builder<'d, D>) -> Self {
+        assert!(INTERFACE_COUNT > 0, "interface count must be at least 1");
+        assert!(INTERFACE_COUNT <= MAX_MIDI_INTERFACE_COUNT, "interface count must not be greater than 8");
 
         let mut func = builder.function(0, 0, 0);
 
@@ -65,7 +65,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
 
         // Class-specific MS Interface Descriptor
-        let total_cs_descriptor_length = 7 + (INTF_COUNT as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (INTF_COUNT as u16)) + 9 + (4 + (INTF_COUNT as u16));
+        let total_cs_descriptor_length = 7 + (INTERFACE_COUNT as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (INTERFACE_COUNT as u16)) + 9 + (4 + (INTERFACE_COUNT as u16));
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -79,15 +79,15 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
 
         let mut output_descriptor: Vec<u8, 10> = Vec::from_slice(&[
             MS_GENERAL,
-            INTF_COUNT as u8,
+            INTERFACE_COUNT as u8,
         ]).unwrap();
 
         let mut input_descriptor: Vec<u8, 10> = Vec::from_slice(&[
             MS_GENERAL,
-            INTF_COUNT as u8,
+            INTERFACE_COUNT as u8,
         ]).unwrap();
 
-        for i in 0..INTF_COUNT {
+        for i in 0..INTERFACE_COUNT {
             let offset = i * 4;
             let jack_id_in_embedded = offset + 0x01;
             let jack_id_in_external = offset + 0x02;

@@ -4,22 +4,20 @@
 
 use defmt::info;
 use embassy_executor::Spawner;
-use embassy_stm32::{Config, interrupt, Peripheral, Peripherals, usb_otg};
+use embassy_stm32::{Config, interrupt, Peripheral};
 use embassy_stm32::peripherals::USB_OTG_FS;
 use embassy_stm32::time::mhz;
 use embassy_stm32::usb_otg::{DmPin, DpPin, Driver, Instance};
-use embassy_time::{Duration, Timer};
 use embassy_usb::{Builder, UsbDevice};
-use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
 use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
 
-use crate::usb_midi::UsbMidiClass;
+use crate::usb_midi::{MAX_PACKET_SIZE, UsbMidiClass};
 
 mod usb_midi;
 
-struct UsbBuffers {
+struct UsbBuilder {
     device_descriptor: [u8; 256],
     config_descriptor: [u8; 256],
     bos_descriptor: [u8; 64],
@@ -27,15 +25,15 @@ struct UsbBuffers {
     ep_out_buffer: [u8; 256],
 }
 
-impl UsbBuffers {
-    fn new() -> UsbBuffers {
-        let mut device_descriptor = [0; 256];
-        let mut config_descriptor = [0; 256];
-        let mut bos_descriptor = [0; 64];
-        let mut control_buf = [0; 64];
-        let mut ep_out_buffer= [0; 256];
+impl UsbBuilder {
+    fn new() -> UsbBuilder {
+        let device_descriptor = [0; 256];
+        let config_descriptor = [0; 256];
+        let bos_descriptor = [0; 64];
+        let control_buf = [0; 64];
+        let ep_out_buffer = [0; 256];
 
-        UsbBuffers {
+        UsbBuilder {
             device_descriptor,
             config_descriptor,
             bos_descriptor,
@@ -43,51 +41,47 @@ impl UsbBuffers {
             ep_out_buffer,
         }
     }
-}
 
-fn build_usb_devices<'d, P1, P2>(usb: USB_OTG_FS,
-                                 p1: P1,
-                                 p2: P2,
-                                 buffers: &'d mut UsbBuffers,
-) -> (UsbMidiClass<'d, Driver<'d, USB_OTG_FS>>, UsbDevice<'d, Driver<'d, USB_OTG_FS>>)
-    where P1: Peripheral + 'd,
-          P1::P: DpPin<USB_OTG_FS>,
-          P2: Peripheral + 'd,
-          P2::P: DmPin<USB_OTG_FS>
-{
-    let irq = interrupt::take!(OTG_FS);
-    let driver = Driver::new_fs(usb, irq, p1, p2, &mut buffers.ep_out_buffer);
+    fn build<'a, UsbInstance, UsbPeripheral, Dp, Dm>(
+        &'a mut self,
+        usb: UsbPeripheral,
+        irq: UsbInstance::Interrupt,
+        dp: Dp,
+        dm: Dm,
+    ) -> (
+        UsbMidiClass<Driver<UsbInstance>>,
+        UsbDevice<Driver<UsbInstance>>
+    )
+        where
+            UsbInstance: Instance,
+            UsbPeripheral: Peripheral<P=UsbInstance> + 'a,
+            Dp: Peripheral + 'a,
+            Dp::P: DpPin<UsbInstance>,
+            Dm: Peripheral + 'a,
+            Dm::P: DmPin<UsbInstance>,
+    {
+        let driver = Driver::new_fs(usb, irq, dp, dm, &mut self.ep_out_buffer);
 
-    let mut config = embassy_usb::Config::new(0xc0de, 0xcafe);
-    config.manufacturer = Some("MIDIbox");
-    config.product = Some("USB-MIDI example");
-    config.serial_number = Some("87654321");
+        let mut config = embassy_usb::Config::new(0xc0de, 0xcafe);
+        config.manufacturer = Some("MIDIbox");
+        config.product = Some("USB-MIDI example");
+        config.serial_number = Some("87654321");
 
-    config.device_class = 0x00; // use class code from interface
-    config.device_sub_class = 0x00; // unused
-    config.device_protocol = 0x00; // unused
-    config.max_packet_size_0 = 0x40; // 64 bytes
+        let mut builder = Builder::new(
+            driver,
+            config,
+            &mut self.device_descriptor,
+            &mut self.config_descriptor,
+            &mut self.bos_descriptor,
+            &mut self.control_buf,
+            None,
+        );
 
-    config.self_powered = false;
-    config.max_power = 100;
+        let midi_class = UsbMidiClass::new::<2>(&mut builder);
+        let usb_device = builder.build();
 
-    let mut builder = Builder::new(
-        driver,
-        config,
-        &mut buffers.device_descriptor,
-        &mut buffers.config_descriptor,
-        &mut buffers.bos_descriptor,
-        &mut buffers.control_buf,
-        None,
-    );
-
-    // Create classes on the builder
-    // let mut class = CdcAcmClass::new(&mut builder, &mut state, 64);
-    let midi_class = UsbMidiClass::new::<2>(&mut builder);
-
-    let usb = builder.build();
-
-    (midi_class, usb)
+        (midi_class, usb_device)
+    }
 }
 
 #[embassy_executor::main]
@@ -100,11 +94,16 @@ async fn main(_spawner: Spawner) {
 
     let p = embassy_stm32::init(config);
 
-    let mut buffers = UsbBuffers::new();
+    let irq = interrupt::take!(OTG_FS);
 
-    let (mut midi_class, mut usb) = build_usb_devices(
-        p.USB_OTG_FS, p.PA12, p.PA11,
-        &mut buffers);
+    let mut usb_device_builder = UsbBuilder::new();
+
+    let (mut midi_class, mut usb) = usb_device_builder.build(
+        p.USB_OTG_FS,
+        irq,
+        p.PA12,
+        p.PA11,
+    );
 
     let usb_fut = usb.run();
 
