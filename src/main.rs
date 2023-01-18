@@ -5,7 +5,7 @@
 use defmt::info;
 use embassy_executor::Spawner;
 use embassy_stm32::{Config, interrupt, Peripheral};
-use embassy_stm32::peripherals::USB_OTG_FS;
+
 use embassy_stm32::time::mhz;
 use embassy_stm32::usb_otg::{DmPin, DpPin, Driver, Instance};
 use embassy_usb::{Builder, UsbDevice};
@@ -13,7 +13,7 @@ use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
 
-use crate::usb_midi::{Handler, MAX_PACKET_SIZE, UsbMidiClass};
+use crate::usb_midi::{Handler, UsbMidiClass};
 
 mod usb_midi;
 

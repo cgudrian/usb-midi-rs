@@ -1,5 +1,5 @@
 use defmt::debug;
-use defmt::export::fmt;
+
 use embassy_usb::{Builder};
 use embassy_usb::control::ControlHandler;
 
