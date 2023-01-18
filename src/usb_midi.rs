@@ -1,6 +1,6 @@
 use core::mem::MaybeUninit;
 
-use defmt::debug;
+use defmt::{debug, Formatter, write};
 use embassy_usb::Builder;
 use embassy_usb::control::ControlHandler;
 use embassy_usb::descriptor::EndpointExtra;
@@ -28,6 +28,51 @@ const JACK_TYPE_EXTERNAL: u8 = 0x02;
 pub const MAX_PACKET_SIZE: u16 = 64;
 const MAX_MIDI_INTERFACE_COUNT: u8 = 8;
 
+#[derive(defmt::Format, Copy, Clone, Eq, PartialEq)]
+pub enum Event {
+    Misc,
+    Cable,
+    SystemCommon2(u8, u8),
+    SystemCommon3(u8, u8, u8),
+    SysExStartCont(u8, u8, u8),
+    SystemCommon1SysExEnd1(u8),
+    SysExEnd2(u8, u8),
+    SysExEnd3(u8, u8, u8),
+    NoteOff(u8, Note, u8),
+    NoteOn(u8, Note, u8),
+    PolyKeyPress(u8, u8, u8),
+    ControlChange(u8, u8, u8),
+    ProgramChange(u8, u8),
+    ChannelPressure(u8, u8),
+    PitchBendChange(u8, u8, u8),
+    SingleByte(u8),
+}
+
+impl Event {
+    pub fn new(data: &[u8]) -> Event {
+        assert_eq!(data.len(), 4);
+        match data[0] & 0xf {
+            0x0 => Event::Misc,
+            0x1 => Event::Cable,
+            0x2 => Event::SystemCommon2(data[1], data[2]),
+            0x3 => Event::SystemCommon3(data[1], data[2], data[3]),
+            0x4 => Event::SysExStartCont(data[1], data[2], data[3]),
+            0x5 => Event::SystemCommon1SysExEnd1(data[1]),
+            0x6 => Event::SysExEnd2(data[1], data[2]),
+            0x7 => Event::SysExEnd3(data[1], data[2], data[3]),
+            0x8 => Event::NoteOff(data[1], Note(data[2]), data[3]),
+            0x9 => Event::NoteOn(data[1], Note(data[2]), data[3]),
+            0xa => Event::PolyKeyPress(data[1], data[2], data[3]),
+            0xb => Event::ControlChange(data[1], data[2], data[3]),
+            0xc => Event::ProgramChange(data[1], data[2]),
+            0xd => Event::ChannelPressure(data[1], data[2]),
+            0xe => Event::PitchBendChange(data[1], data[2], data[3]),
+            0xf => Event::SingleByte(data[1]),
+            _ => panic!("now that's surprising"),
+        }
+    }
+}
+
 pub struct Control {
     string_offset: u8,
 }
@@ -44,6 +89,27 @@ impl State {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Note(u8);
+
+const UPPER_NOTE_NAMES: [&str; 12] = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
+const LOWER_NOTE_NAMES: [&str; 12] = ["c-", "c#", "d-", "d#", "e-", "f-", "f#", "g-", "g#", "a-", "a#", "b-"];
+
+impl defmt::Format for Note {
+    fn format(&self, fmt: Formatter) {
+        let octave = (self.0 / 12) as isize - 2;
+        let note = (self.0 % 12) as usize;
+        let note = if octave < 0 {
+            LOWER_NOTE_NAMES[note]
+        } else {
+            UPPER_NOTE_NAMES[note]
+        };
+        write!(fmt, "{}{}", note, octave.abs());
+    }
+}
+
+
+// TODO Invent a static version of configuring the number of MIDI ports
 impl ControlHandler for Control {
     fn get_string(&mut self, index: StringIndex, _lang_id: u16) -> Option<&str> {
         let index: u8 = index.into();
@@ -116,7 +182,7 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
         );
 
         // Class-specific MS Interface Descriptor
-        // TO DO: This is ugly as hell. I do not want to count bytes.
+        // TODO: This is ugly as hell. I do not want to count bytes.
         let total_cs_descriptor_length = 7 + (N as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (N as u16)) + 9 + (4 + (N as u16));
         alt.descriptor(
             CS_INTERFACE,
@@ -223,7 +289,7 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
         }
     }
 
-    pub async fn read_packet(&mut self, data: &mut [u8]) -> Result<usize, EndpointError> {
+    pub async fn read_packets(&mut self, data: &mut [u8]) -> Result<usize, EndpointError> {
         self.read_ep.read(data).await
     }
 

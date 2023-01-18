@@ -2,10 +2,9 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use defmt::info;
+use defmt::{debug, info, trace};
 use embassy_executor::Spawner;
 use embassy_stm32::{Config, interrupt, Peripheral};
-
 use embassy_stm32::time::mhz;
 use embassy_stm32::usb_otg::{DmPin, DpPin, Driver, Instance};
 use embassy_usb::{Builder, UsbDevice};
@@ -13,7 +12,7 @@ use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
 
-use crate::usb_midi::{Control, State, UsbMidiClass};
+use crate::usb_midi::{Control, Event, State, UsbMidiClass};
 
 mod usb_midi;
 
@@ -117,9 +116,12 @@ async fn main(_spawner: Spawner) {
             midi_class.wait_connection().await;
             info!("### Connected ###");
             loop {
-                let cnt = midi_class.read_packet(&mut buf).await.unwrap();
-                for c in buf[0..cnt].chunks_exact(4) {
-                    info!("### got data: cable:{} cin:{} midi:{}", c[0] >> 4, c[0] & 0xf, c[1..=3]);
+                let cnt = midi_class.read_packets(&mut buf).await.unwrap();
+                trace!("read_packet: cnt={}", cnt);
+                for packet in buf[0..cnt].chunks_exact(4) {
+                    let cable = packet[0] >> 4;
+                    let event = Event::new(packet);
+                    trace!("### cable {}: event {}", cable, event);
                 }
                 let _ = midi_class.write_packet(&[1 << 4 | 9, 147, 53, 124]).await;
             }
