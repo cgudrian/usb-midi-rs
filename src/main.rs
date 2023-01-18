@@ -19,14 +19,36 @@ use crate::usb_midi::UsbMidiClass;
 
 mod usb_midi;
 
-fn build_midi_devices<'d, P1, P2>(usb: USB_OTG_FS,
-                                  p1: P1,
-                                  p2: P2,
-                                  device_descriptor: &'d mut [u8],
-                                  config_descriptor: &'d mut [u8],
-                                  bos_descriptor: &'d mut [u8],
-                                  control_buf: &'d mut [u8],
-                                  ep_out_buffer: &'d mut [u8],
+struct UsbBuffers {
+    device_descriptor: [u8; 256],
+    config_descriptor: [u8; 256],
+    bos_descriptor: [u8; 64],
+    control_buf: [u8; 64],
+    ep_out_buffer: [u8; 256],
+}
+
+impl UsbBuffers {
+    fn new() -> UsbBuffers {
+        let mut device_descriptor = [0; 256];
+        let mut config_descriptor = [0; 256];
+        let mut bos_descriptor = [0; 64];
+        let mut control_buf = [0; 64];
+        let mut ep_out_buffer= [0; 256];
+
+        UsbBuffers {
+            device_descriptor,
+            config_descriptor,
+            bos_descriptor,
+            control_buf,
+            ep_out_buffer,
+        }
+    }
+}
+
+fn build_usb_devices<'d, P1, P2>(usb: USB_OTG_FS,
+                                 p1: P1,
+                                 p2: P2,
+                                 buffers: &'d mut UsbBuffers,
 ) -> (UsbMidiClass<'d, Driver<'d, USB_OTG_FS>>, UsbDevice<'d, Driver<'d, USB_OTG_FS>>)
     where P1: Peripheral + 'd,
           P1::P: DpPin<USB_OTG_FS>,
@@ -34,7 +56,7 @@ fn build_midi_devices<'d, P1, P2>(usb: USB_OTG_FS,
           P2::P: DmPin<USB_OTG_FS>
 {
     let irq = interrupt::take!(OTG_FS);
-    let driver = Driver::new_fs(usb, irq, p1, p2, ep_out_buffer);
+    let driver = Driver::new_fs(usb, irq, p1, p2, &mut buffers.ep_out_buffer);
 
     let mut config = embassy_usb::Config::new(0xc0de, 0xcafe);
     config.manufacturer = Some("MIDIbox");
@@ -52,10 +74,10 @@ fn build_midi_devices<'d, P1, P2>(usb: USB_OTG_FS,
     let mut builder = Builder::new(
         driver,
         config,
-        device_descriptor,
-        config_descriptor,
-        bos_descriptor,
-        control_buf,
+        &mut buffers.device_descriptor,
+        &mut buffers.config_descriptor,
+        &mut buffers.bos_descriptor,
+        &mut buffers.control_buf,
         None,
     );
 
@@ -73,22 +95,16 @@ async fn main(_spawner: Spawner) {
     info!("USB MIDI!");
 
     let mut config = Config::default();
-    config.rcc.sys_ck = Some(mhz(168));
+    config.rcc.sys_ck = Some(mhz(180));
     config.rcc.pll48 = true;
 
     let p = embassy_stm32::init(config);
 
-    let mut device_descriptor = [0; 256];
-    let mut config_descriptor = [0; 256];
-    let mut bos_descriptor = [0; 256];
-    let mut control_buf = [0; 64];
-    let mut ep_out_buffer = [0; 256];
+    let mut buffers = UsbBuffers::new();
 
-    let (mut midi_class, mut usb) = build_midi_devices(p.USB_OTG_FS, p.PA12, p.PA11, &mut device_descriptor,
-                                                       &mut config_descriptor,
-                                                       &mut bos_descriptor,
-                                                       &mut control_buf,
-                                                       &mut ep_out_buffer);
+    let (mut midi_class, mut usb) = build_usb_devices(
+        p.USB_OTG_FS, p.PA12, p.PA11,
+        &mut buffers);
 
     let usb_fut = usb.run();
 
