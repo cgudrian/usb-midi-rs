@@ -65,7 +65,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
 
         // Class-specific MS Interface Descriptor
-        let total_cs_descriptor_length = 7 + INTF_COUNT * (6 + 6 + 9 + 9) + 9 + (4 + INTF_COUNT) + 9 + (4 + INTF_COUNT);
+        let total_cs_descriptor_length = 7 + (INTF_COUNT as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (INTF_COUNT as u16)) + 9 + (4 + (INTF_COUNT as u16));
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -149,14 +149,12 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
 
         // Standard Bulk OUT Endpoint Descriptor
         let read_ep = alt.endpoint_bulk_out(MAX_PACKET_SIZE, EndpointExtra::audio(0, 0));
-
         alt.descriptor(
             CS_ENDPOINT,
             output_descriptor.as_slice(),
         );
 
         let write_ep = alt.endpoint_bulk_in(MAX_PACKET_SIZE, EndpointExtra::audio(0, 0));
-
         alt.descriptor(
             CS_ENDPOINT,
             input_descriptor.as_slice(),

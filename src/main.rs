@@ -2,15 +2,16 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use futures::future::join;
-use defmt::{info};
+use defmt::info;
 use embassy_executor::Spawner;
-use embassy_stm32::{Config, interrupt};
-use embassy_stm32::time::{mhz};
-use embassy_stm32::usb_otg::Driver;
+use embassy_stm32::{Config, interrupt, Peripheral, Peripherals, usb_otg};
+use embassy_stm32::peripherals::USB_OTG_FS;
+use embassy_stm32::time::mhz;
+use embassy_stm32::usb_otg::{DmPin, DpPin, Driver, Instance};
 use embassy_time::{Duration, Timer};
-use embassy_usb::Builder;
+use embassy_usb::{Builder, UsbDevice};
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State};
+use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
 
@@ -18,19 +19,22 @@ use crate::usb_midi::UsbMidiClass;
 
 mod usb_midi;
 
-#[embassy_executor::main]
-async fn main(_spawner: Spawner) {
-    info!("USB MIDI!");
-
-    let mut config = Config::default();
-    config.rcc.sys_ck = Some(mhz(168));
-    config.rcc.pll48 = true;
-
-    let p = embassy_stm32::init(config);
-
+fn build_midi_devices<'d, P1, P2>(usb: USB_OTG_FS,
+                                  p1: P1,
+                                  p2: P2,
+                                  device_descriptor: &'d mut [u8],
+                                  config_descriptor: &'d mut [u8],
+                                  bos_descriptor: &'d mut [u8],
+                                  control_buf: &'d mut [u8],
+                                  ep_out_buffer: &'d mut [u8],
+) -> (UsbMidiClass<'d, Driver<'d, USB_OTG_FS>>, UsbDevice<'d, Driver<'d, USB_OTG_FS>>)
+    where P1: Peripheral + 'd,
+          P1::P: DpPin<USB_OTG_FS>,
+          P2: Peripheral + 'd,
+          P2::P: DmPin<USB_OTG_FS>
+{
     let irq = interrupt::take!(OTG_FS);
-    let mut ep_out_buffer = [0u8; 256];
-    let driver = Driver::new_fs(p.USB_OTG_FS, irq, p.PA12, p.PA11, &mut ep_out_buffer);
+    let driver = Driver::new_fs(usb, irq, p1, p2, ep_out_buffer);
 
     let mut config = embassy_usb::Config::new(0xc0de, 0xcafe);
     config.manufacturer = Some("MIDIbox");
@@ -45,27 +49,47 @@ async fn main(_spawner: Spawner) {
     config.self_powered = false;
     config.max_power = 100;
 
-    // Create embassy-usb DeviceBuilder using the driver and config.
-    // It needs some buffers for building the descriptors.
-    let mut device_descriptor = [0; 512];
-    let mut config_descriptor = [0; 512];
-    let mut bos_descriptor = [0; 64]; // binary object store
-    let mut control_buf = [0; 64];
-
     let mut builder = Builder::new(
         driver,
         config,
-        &mut device_descriptor,
-        &mut config_descriptor,
-        &mut bos_descriptor,
-        &mut control_buf, None,
+        device_descriptor,
+        config_descriptor,
+        bos_descriptor,
+        control_buf,
+        None,
     );
 
     // Create classes on the builder
     // let mut class = CdcAcmClass::new(&mut builder, &mut state, 64);
-    let mut midi_class = UsbMidiClass::new::<1>(&mut builder);
+    let midi_class = UsbMidiClass::new::<2>(&mut builder);
 
-    let mut usb = builder.build();
+    let usb = builder.build();
+
+    (midi_class, usb)
+}
+
+#[embassy_executor::main]
+async fn main(_spawner: Spawner) {
+    info!("USB MIDI!");
+
+    let mut config = Config::default();
+    config.rcc.sys_ck = Some(mhz(168));
+    config.rcc.pll48 = true;
+
+    let p = embassy_stm32::init(config);
+
+    let mut device_descriptor = [0; 256];
+    let mut config_descriptor = [0; 256];
+    let mut bos_descriptor = [0; 256];
+    let mut control_buf = [0; 64];
+    let mut ep_out_buffer = [0; 256];
+
+    let (mut midi_class, mut usb) = build_midi_devices(p.USB_OTG_FS, p.PA12, p.PA11, &mut device_descriptor,
+                                                       &mut config_descriptor,
+                                                       &mut bos_descriptor,
+                                                       &mut control_buf,
+                                                       &mut ep_out_buffer);
+
     let usb_fut = usb.run();
 
     let midi_fut = async {
