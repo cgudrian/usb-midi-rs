@@ -52,9 +52,6 @@ async fn main(_spawner: Spawner) {
     let mut bos_descriptor = [0; 64]; // binary object store
     let mut control_buf = [0; 64];
 
-    let mut state = State::new(); // must come before the builder
-    let mut midi_state = usb_midi::State::new();
-
     let mut builder = Builder::new(
         driver,
         config,
@@ -66,7 +63,7 @@ async fn main(_spawner: Spawner) {
 
     // Create classes on the builder
     // let mut class = CdcAcmClass::new(&mut builder, &mut state, 64);
-    let mut midi_class = UsbMidiClass::new::<1>(&mut builder, &mut midi_state);
+    let mut midi_class = UsbMidiClass::new::<1>(&mut builder);
 
     let mut usb = builder.build();
     let usb_fut = usb.run();
