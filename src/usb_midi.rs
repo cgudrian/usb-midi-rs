@@ -1,9 +1,8 @@
 use core::mem::MaybeUninit;
+
 use defmt::debug;
-
-use embassy_usb::{Builder};
+use embassy_usb::Builder;
 use embassy_usb::control::ControlHandler;
-
 use embassy_usb::descriptor::EndpointExtra;
 use embassy_usb::driver::{Driver, Endpoint, EndpointError, EndpointIn, EndpointOut};
 use embassy_usb::types::StringIndex;
@@ -117,7 +116,7 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
         );
 
         // Class-specific MS Interface Descriptor
-        // TODO: This is ugly as hell. I do not want to count bytes.
+        // TO DO: This is ugly as hell. I do not want to count bytes.
         let total_cs_descriptor_length = 7 + (N as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (N as u16)) + 9 + (4 + (N as u16));
         alt.descriptor(
             CS_INTERFACE,
