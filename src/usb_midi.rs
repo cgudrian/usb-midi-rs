@@ -1,10 +1,11 @@
-
-
-
+use defmt::debug;
+use defmt::export::fmt;
 use embassy_usb::{Builder};
+use embassy_usb::control::ControlHandler;
 
 use embassy_usb::descriptor::EndpointExtra;
 use embassy_usb::driver::{Driver, Endpoint, EndpointError, EndpointIn, EndpointOut};
+use embassy_usb::types::StringIndex;
 use heapless::Vec;
 
 const USB_CLASS_AUDIO: u8 = 0x01;
@@ -28,13 +29,42 @@ const JACK_TYPE_EXTERNAL: u8 = 0x02;
 pub const MAX_PACKET_SIZE: u16 = 64;
 const MAX_MIDI_INTERFACE_COUNT: u8 = 8;
 
+pub struct Handler {
+
+}
+
+impl Handler {
+    pub fn new() -> Self {
+        Self {
+
+        }
+    }
+}
+
+impl ControlHandler for Handler {
+    fn get_string(&mut self, index: StringIndex, lang_id: u16) -> Option<&str> {
+        debug!("get_string index={} lang_id={}", index, lang_id);
+        match index.into() {
+            1 => Some("Eins"),
+            2 => Some("Zwei"),
+            3 => Some("Drei"),
+            4 => Some("Vier"),
+            5 => Some("Fünf"),
+            6 => Some("Sechs"),
+            7 => Some("Sieben"),
+            8 => Some("Acht"),
+            _ => None,
+        }
+    }
+}
+
 pub struct UsbMidiClass<'d, D: Driver<'d>> {
     read_ep: D::EndpointOut,
     write_ep: D::EndpointIn,
 }
 
 impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
-    pub fn new<const INTERFACE_COUNT: u8>(builder: &mut Builder<'d, D>) -> Self {
+    pub fn new<const INTERFACE_COUNT: u8>(builder: &mut Builder<'d, D>, handler: &'d mut Handler) -> Self {
         assert!(INTERFACE_COUNT > 0, "interface count must be at least 1");
         assert!(INTERFACE_COUNT <= MAX_MIDI_INTERFACE_COUNT, "interface count must not be greater than 8");
 
@@ -44,7 +74,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         // AudioControl Interface
         //
         let mut iface = func.interface();
-        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_AUDIOCONTROL, AUDIO_PROTOCOL_UNDEFINED);
+        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_AUDIOCONTROL, AUDIO_PROTOCOL_UNDEFINED, Some(7.into()));
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -62,7 +92,16 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         // MIDIStreaming Interface
         //
         let mut iface = func.interface();
-        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
+        iface.handler(handler);
+
+        for i in 0..INTERFACE_COUNT {
+            iface.string();
+            iface.string();
+            iface.string();
+            iface.string();
+        }
+
+        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED, Some(6.into()));
 
         // Class-specific MS Interface Descriptor
         let total_cs_descriptor_length = 7 + (INTERFACE_COUNT as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (INTERFACE_COUNT as u16)) + 9 + (4 + (INTERFACE_COUNT as u16));
@@ -101,7 +140,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     MIDI_IN_JACK,
                     JACK_TYPE_EMBEDDED,
                     jack_id_in_embedded,
-                    0x00, // unused
+                    jack_id_in_embedded, // iJack
                 ],
             );
             output_descriptor.push(jack_id_in_embedded).unwrap();
@@ -113,7 +152,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     MIDI_IN_JACK,
                     JACK_TYPE_EXTERNAL,
                     jack_id_in_external,
-                    0x00, // unused
+                    jack_id_in_external, // iJack
                 ],
             );
 
@@ -127,7 +166,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     0x01, // number of input pins of this jack
                     jack_id_in_external, // id of the entity to which this pin is connected
                     0x01, // output pin number of the entity to which this input pin is connected
-                    0x00, // unused
+                    jack_id_out_embedded, // iJack
                 ],
             );
             input_descriptor.push(jack_id_out_embedded).unwrap();
@@ -142,7 +181,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     0x01, // number of input pins of this jack
                     jack_id_in_embedded, // id of the entity to which this pin is connected
                     0x01, // output pin number of the entity to which this input pin is connected
-                    0x00, // unused
+                    jack_id_out_external, // iJack
                 ],
             );
         }

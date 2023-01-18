@@ -13,32 +13,34 @@ use futures::future::join;
 
 use {defmt_rtt as _, panic_probe as _};
 
-use crate::usb_midi::{MAX_PACKET_SIZE, UsbMidiClass};
+use crate::usb_midi::{Handler, MAX_PACKET_SIZE, UsbMidiClass};
 
 mod usb_midi;
 
-struct UsbBuilder {
+struct UsbDeviceBuilder {
     device_descriptor: [u8; 256],
     config_descriptor: [u8; 256],
     bos_descriptor: [u8; 64],
     control_buf: [u8; 64],
     ep_out_buffer: [u8; 256],
+    handler: Handler,
 }
 
-impl UsbBuilder {
-    fn new() -> UsbBuilder {
+impl UsbDeviceBuilder {
+    fn new() -> UsbDeviceBuilder {
         let device_descriptor = [0; 256];
         let config_descriptor = [0; 256];
         let bos_descriptor = [0; 64];
         let control_buf = [0; 64];
         let ep_out_buffer = [0; 256];
 
-        UsbBuilder {
+        UsbDeviceBuilder {
             device_descriptor,
             config_descriptor,
             bos_descriptor,
             control_buf,
             ep_out_buffer,
+            handler: Handler::new(),
         }
     }
 
@@ -77,7 +79,7 @@ impl UsbBuilder {
             None,
         );
 
-        let midi_class = UsbMidiClass::new::<2>(&mut builder);
+        let midi_class = UsbMidiClass::new::<2>(&mut builder, &mut self.handler);
         let usb_device = builder.build();
 
         (midi_class, usb_device)
@@ -96,7 +98,7 @@ async fn main(_spawner: Spawner) {
 
     let irq = interrupt::take!(OTG_FS);
 
-    let mut usb_device_builder = UsbBuilder::new();
+    let mut usb_device_builder = UsbDeviceBuilder::new();
 
     let (mut midi_class, mut usb) = usb_device_builder.build(
         p.USB_OTG_FS,
