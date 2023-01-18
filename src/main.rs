@@ -51,7 +51,7 @@ impl UsbDeviceBuilder {
         dp: Dp,
         dm: Dm,
     ) -> (
-        UsbMidiClass<Driver<UsbInstance>>,
+        UsbMidiClass<Driver<UsbInstance>, 2>,
         UsbDevice<Driver<UsbInstance>>
     )
         where
@@ -79,7 +79,7 @@ impl UsbDeviceBuilder {
             None,
         );
 
-        let midi_class = UsbMidiClass::new::<2>(&mut builder, &mut self.handler);
+        let midi_class = UsbMidiClass::new(&mut builder, &mut self.handler);
         let usb_device = builder.build();
 
         (midi_class, usb_device)

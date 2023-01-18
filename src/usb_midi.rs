@@ -29,15 +29,11 @@ const JACK_TYPE_EXTERNAL: u8 = 0x02;
 pub const MAX_PACKET_SIZE: u16 = 64;
 const MAX_MIDI_INTERFACE_COUNT: u8 = 8;
 
-pub struct Handler {
-
-}
+pub struct Handler {}
 
 impl Handler {
     pub fn new() -> Self {
-        Self {
-
-        }
+        Self {}
     }
 }
 
@@ -58,15 +54,15 @@ impl ControlHandler for Handler {
     }
 }
 
-pub struct UsbMidiClass<'d, D: Driver<'d>> {
+pub struct UsbMidiClass<'d, D: Driver<'d>, const N: usize> {
     read_ep: D::EndpointOut,
     write_ep: D::EndpointIn,
 }
 
-impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
-    pub fn new<const INTERFACE_COUNT: u8>(builder: &mut Builder<'d, D>, handler: &'d mut Handler) -> Self {
-        assert!(INTERFACE_COUNT > 0, "interface count must be at least 1");
-        assert!(INTERFACE_COUNT <= MAX_MIDI_INTERFACE_COUNT, "interface count must not be greater than 8");
+impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
+    pub fn new(builder: &mut Builder<'d, D>, handler: &'d mut Handler) -> Self {
+        assert!(N > 0, "interface count must be at least 1");
+        assert!(N <= MAX_MIDI_INTERFACE_COUNT as usize, "interface count must not be greater than 8");
 
         let mut func = builder.function(0, 0, 0);
 
@@ -94,17 +90,16 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         let mut iface = func.interface();
         iface.handler(handler);
 
-        for i in 0..INTERFACE_COUNT {
-            iface.string();
-            iface.string();
-            iface.string();
-            iface.string();
+        // reserve string indices for jack names
+        let mut port_names = [0u8; N];
+        for idx in &mut port_names {
+            *idx = iface.string().into();
         }
 
         let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED, Some(6.into()));
 
         // Class-specific MS Interface Descriptor
-        let total_cs_descriptor_length = 7 + (INTERFACE_COUNT as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (INTERFACE_COUNT as u16)) + 9 + (4 + (INTERFACE_COUNT as u16));
+        let total_cs_descriptor_length = 7 + (N as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (N as u16)) + 9 + (4 + (N as u16));
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -118,20 +113,20 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
 
         let mut output_descriptor: Vec<u8, 10> = Vec::from_slice(&[
             MS_GENERAL,
-            INTERFACE_COUNT as u8,
+            N as u8,
         ]).unwrap();
 
         let mut input_descriptor: Vec<u8, 10> = Vec::from_slice(&[
             MS_GENERAL,
-            INTERFACE_COUNT as u8,
+            N as u8,
         ]).unwrap();
 
-        for i in 0..INTERFACE_COUNT {
+        for i in 0..N {
             let offset = i * 4;
-            let jack_id_in_embedded = offset + 0x01;
-            let jack_id_in_external = offset + 0x02;
-            let jack_id_out_embedded = offset + 0x03;
-            let jack_id_out_external = offset + 0x04;
+            let jack_id_in_embedded = (offset + 0x01) as u8;
+            let jack_id_in_external = (offset + 0x02) as u8;
+            let jack_id_out_embedded = (offset + 0x03) as u8;
+            let jack_id_out_external = (offset + 0x04) as u8;
 
             // MIDI IN Jack Descriptor (Embedded)
             alt.descriptor(
@@ -140,7 +135,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     MIDI_IN_JACK,
                     JACK_TYPE_EMBEDDED,
                     jack_id_in_embedded,
-                    jack_id_in_embedded, // iJack
+                    port_names[i], // iJack
                 ],
             );
             output_descriptor.push(jack_id_in_embedded).unwrap();
@@ -152,7 +147,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     MIDI_IN_JACK,
                     JACK_TYPE_EXTERNAL,
                     jack_id_in_external,
-                    jack_id_in_external, // iJack
+                    0x00, // iJack
                 ],
             );
 
@@ -166,7 +161,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     0x01, // number of input pins of this jack
                     jack_id_in_external, // id of the entity to which this pin is connected
                     0x01, // output pin number of the entity to which this input pin is connected
-                    jack_id_out_embedded, // iJack
+                    port_names[i], // iJack
                 ],
             );
             input_descriptor.push(jack_id_out_embedded).unwrap();
@@ -175,13 +170,12 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             alt.descriptor(
                 CS_INTERFACE,
                 &[
-                    MIDI_OUT_JACK,
                     JACK_TYPE_EXTERNAL,
                     jack_id_out_external,
                     0x01, // number of input pins of this jack
                     jack_id_in_embedded, // id of the entity to which this pin is connected
                     0x01, // output pin number of the entity to which this input pin is connected
-                    jack_id_out_external, // iJack
+                    0x00, // iJack
                 ],
             );
         }
@@ -215,5 +209,9 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
 
     pub async fn wait_connection(&mut self) {
         self.read_ep.wait_enabled().await
+    }
+
+    pub fn split_cables(&mut self) -> [u8; N] {
+        [0; N]
     }
 }
