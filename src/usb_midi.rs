@@ -1,4 +1,5 @@
 use core::mem::MaybeUninit;
+
 use defmt::{debug, info};
 use embassy_usb::{Builder, control};
 use embassy_usb::control::{ControlHandler, InResponse, OutResponse, Request};
@@ -22,7 +23,9 @@ const ENDPOINT_OUT: u8 = 0x01;
 const ENDPOINT_IN: u8 = 0x81;
 const ENDPOINT_BULK: u8 = 0x02;
 
-const NUM_MIDI_PORTS: u16 = 2;
+const MAX_PACKET_SIZE: u16 = 64;
+
+const MAX_MIDI_INTERFACE_COUNT: usize = 8;
 
 pub struct State<'a> {
     control1: MaybeUninit<Control<'a>>,
@@ -81,7 +84,10 @@ impl<'d> ControlHandler for Control<'d> {
 }
 
 impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
-    pub fn new(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
+    pub fn new<const INTF_COUNT: usize>(builder: &mut Builder<'d, D>, state: &'d mut State<'d>) -> Self {
+        assert!(INTF_COUNT > 0, "interface count must be at least 1");
+        assert!(INTF_COUNT <= MAX_MIDI_INTERFACE_COUNT, "interface count must not be greater than 8");
+
         let control = state.control1.write(Control { shared: &state.shared });
         let control_shared = &state.shared;
 
@@ -108,17 +114,16 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         iface.handler(control);
 
         let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
-        let descriptor_size = 7 + NUM_MIDI_PORTS * (6 + 6 + 9 + 9) + 9 + (4 + NUM_MIDI_PORTS) + 9 + (4 + NUM_MIDI_PORTS);
+        let descriptor_size = 7 + INTF_COUNT * (6 + 6 + 9 + 9) + 9 + (4 + INTF_COUNT) + 9 + (4 + INTF_COUNT);
 
-        const ENDPOINT_DATA_SIZE: usize = (2 + NUM_MIDI_PORTS) as usize;
-        let mut output_descriptor_data: Vec<u8, ENDPOINT_DATA_SIZE> = Vec::from_slice(&[
+        let mut output_descriptor: Vec<u8, 10> = Vec::from_slice(&[
             0x01,
-            NUM_MIDI_PORTS as u8,
+            INTF_COUNT as u8,
         ]).unwrap();
 
-        let mut input_descriptor_data: Vec<u8, ENDPOINT_DATA_SIZE> = Vec::from_slice(&[
+        let mut input_descriptor: Vec<u8, 10> = Vec::from_slice(&[
             0x1,
-            NUM_MIDI_PORTS as u8,
+            INTF_COUNT as u8,
         ]).unwrap();
 
         // Class-specific MS Interface Descriptor
@@ -133,7 +138,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
             ],
         );
 
-        for i in 0..NUM_MIDI_PORTS {
+        for i in 0..INTF_COUNT {
             let midi_in_embedded = (0x01 + i * 4) as u8;
             let midi_in_external = (0x02 + i * 4) as u8;
             let midi_out_embedded = (0x03 + i * 4) as u8;
@@ -149,9 +154,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     0x00,
                 ],
             );
-            if output_descriptor_data.push(midi_in_embedded).is_err() {
-                panic!("max interface count reached")
-            }
+            output_descriptor.push(midi_in_embedded).unwrap();
 
             // MIDI Adapter MIDI IN Jack Descriptor (External)
             alt.descriptor(
@@ -177,9 +180,7 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
                     0x00,
                 ],
             );
-            if input_descriptor_data.push(midi_out_embedded).is_err() {
-                panic!("max interface count reached")
-            }
+            input_descriptor.push(midi_out_embedded).unwrap();
 
             // MIDI Adapter MIDI OUT Jack Descriptor (External)
             alt.descriptor(
@@ -197,18 +198,18 @@ impl<'d, D: Driver<'d>> UsbMidiClass<'d, D> {
         }
 
         // Standard Bulk OUT Endpoint Descriptor
-        let read_ep = alt.endpoint_bulk_out(64, EndpointExtra::audio(0, 0));
+        let read_ep = alt.endpoint_bulk_out(MAX_PACKET_SIZE, EndpointExtra::audio(0, 0));
 
         alt.descriptor(
             CS_ENDPOINT,
-            output_descriptor_data.as_slice(),
+            output_descriptor.as_slice(),
         );
 
-        let write_ep = alt.endpoint_bulk_in(64, EndpointExtra::audio(0, 0));
+        let write_ep = alt.endpoint_bulk_in(MAX_PACKET_SIZE, EndpointExtra::audio(0, 0));
 
         alt.descriptor(
             CS_ENDPOINT,
-            input_descriptor_data.as_slice(),
+            input_descriptor.as_slice(),
         );
 
         UsbMidiClass {
