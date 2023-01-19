@@ -254,6 +254,7 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
             alt.descriptor(
                 CS_INTERFACE,
                 &[
+                    MIDI_OUT_JACK,
                     JACK_TYPE_EXTERNAL,
                     jack_id_out_external,
                     0x01, // number of input pins of this jack
