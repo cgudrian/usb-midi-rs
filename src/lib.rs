@@ -2,7 +2,7 @@
 
 use core::mem::MaybeUninit;
 
-use defmt::{debug, Formatter, write};
+use defmt::{Formatter, write};
 use embassy_usb::Builder;
 use embassy_usb::control::ControlHandler;
 use embassy_usb::descriptor::EndpointExtra;
