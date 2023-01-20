@@ -2,7 +2,7 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cross/embassy" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/cross/embassy/stm32-data" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cross/app/embassy" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cross/app/embassy/stm32-data" vcs="Git" />
   </component>
 </project>

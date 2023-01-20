@@ -20,7 +20,26 @@
       <sourceFolder url="file://$MODULE_DIR$/cross/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/usb-midi-rs/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-cortex-m/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-embedded-hal/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-executor/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-futures/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-hal-common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-macros/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-net-driver-channel/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-net-driver/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-stm32/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-sync/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-time/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-usb-driver/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/embassy-usb/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/stm32-metapac-gen/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/embassy/stm32-metapac/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/cross/app/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/app/target" />
+      <excludeFolder url="file://$MODULE_DIR$/cross/target" />
+      <excludeFolder url="file://$MODULE_DIR$/cross/app/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
