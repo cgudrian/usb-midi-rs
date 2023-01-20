@@ -4,6 +4,12 @@ name = "app"
 version = "0.1.0"
 license = "Proprietary"
 
+[[bin]]
+name = "app"
+bench = false
+doctest = false
+test = false
+
 [dependencies]
 defmt = "0.3"
 defmt-rtt = "0.4"
@@ -44,4 +50,3 @@ features = ["defmt"]
 version = "0.1.0"
 path = "embassy/embassy-stm32"
 features = ["nightly", "unstable-traits", "stm32f439zi", "unstable-pac", "memory-x", "time-driver-any", "exti"]
-

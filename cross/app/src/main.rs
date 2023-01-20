@@ -2,6 +2,8 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+mod usb_midi;
+
 use defmt::{debug, info, trace};
 use embassy_executor::Spawner;
 use embassy_stm32::{Config, interrupt, Peripheral};
@@ -13,7 +15,7 @@ use nom::bytes::complete::take;
 use nom::IResult;
 
 use {defmt_rtt as _, panic_probe as _};
-use usb_midi::{Event, State, UsbMidiClass};
+use crate::usb_midi::{Event, State, UsbMidiClass};
 
 struct UsbDeviceBuilder {
     device_descriptor: [u8; 256],
