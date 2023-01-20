@@ -1,3 +1,5 @@
+#![no_std]
+
 use core::mem::MaybeUninit;
 
 use defmt::{debug, Formatter, write};
@@ -7,6 +9,8 @@ use embassy_usb::descriptor::EndpointExtra;
 use embassy_usb::driver::{Driver, Endpoint, EndpointError, EndpointIn, EndpointOut};
 use embassy_usb::types::StringIndex;
 use heapless::Vec;
+
+use {defmt_rtt as _, panic_probe as _};
 
 const USB_CLASS_AUDIO: u8 = 0x01;
 const AUDIO_SUBCLASS_AUDIOCONTROL: u8 = 0x01;

@@ -9,12 +9,11 @@ use embassy_stm32::time::mhz;
 use embassy_stm32::usb_otg::{DmPin, DpPin, Driver, Instance};
 use embassy_usb::{Builder, UsbDevice};
 use futures::future::join;
+use nom::bytes::complete::take;
+use nom::IResult;
 
 use {defmt_rtt as _, panic_probe as _};
-
-use crate::usb_midi::{Control, Event, State, UsbMidiClass};
-
-mod usb_midi;
+use usb_midi::{Event, State, UsbMidiClass};
 
 struct UsbDeviceBuilder {
     device_descriptor: [u8; 256],
@@ -24,6 +23,12 @@ struct UsbDeviceBuilder {
     ep_out_buffer: [u8; 256],
     state: State,
 }
+
+enum UsbEvent {}
+
+// fn usb_event(input: &[u8]) -> IResult<&[u8], UsbEvent> {
+//
+// }
 
 impl UsbDeviceBuilder {
     fn new() -> UsbDeviceBuilder {
