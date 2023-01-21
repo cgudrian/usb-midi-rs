@@ -96,12 +96,8 @@ impl State {
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Note(u8);
 
-const UPPER_NOTE_NAMES: [&str; 12] = [
-    "C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-",
-];
-const LOWER_NOTE_NAMES: [&str; 12] = [
-    "c-", "c#", "d-", "d#", "e-", "f-", "f#", "g-", "g#", "a-", "a#", "b-",
-];
+const UPPER_NOTE_NAMES: [&str; 12] = ["C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"];
+const LOWER_NOTE_NAMES: [&str; 12] = ["c-", "c#", "d-", "d#", "e-", "f-", "f#", "g-", "g#", "a-", "a#", "b-"];
 
 impl defmt::Format for Note {
     fn format(&self, fmt: Formatter) {
@@ -149,15 +145,10 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
 
         let mut func = builder.function(0, 0, 0);
 
-        //
         // AudioControl Interface
         //
         let mut iface = func.interface();
-        let mut alt = iface.alt_setting(
-            USB_CLASS_AUDIO,
-            AUDIO_SUBCLASS_AUDIOCONTROL,
-            AUDIO_PROTOCOL_UNDEFINED,
-        );
+        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_AUDIOCONTROL, AUDIO_PROTOCOL_UNDEFINED);
         alt.descriptor(
             CS_INTERFACE,
             &[
@@ -170,7 +161,6 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
             ],
         );
 
-        //
         // MIDIStreaming Interface
         //
         let mut iface = func.interface();
@@ -186,23 +176,18 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
         });
         iface.handler(control);
 
-        let mut alt = iface.alt_setting(
-            USB_CLASS_AUDIO,
-            AUDIO_SUBCLASS_MIDISTREAMING,
-            AUDIO_PROTOCOL_UNDEFINED,
-        );
+        let mut alt = iface.alt_setting(USB_CLASS_AUDIO, AUDIO_SUBCLASS_MIDISTREAMING, AUDIO_PROTOCOL_UNDEFINED);
 
         // Class-specific MS Interface Descriptor
         // TODO: This is ugly as hell. I do not want to count bytes.
-        let total_cs_descriptor_length =
-            7 + (N as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (N as u16)) + 9 + (4 + (N as u16));
+        let total_cs_descriptor_length = 7 + (N as u16) * (6 + 6 + 9 + 9) + 9 + (4 + (N as u16)) + 9 + (4 + (N as u16));
         alt.descriptor(
             CS_INTERFACE,
             &[
                 MS_HEADER,
                 0x00,                                    // revision (LSB)
                 0x01,                                    // revision (MSB)
-                total_cs_descriptor_length as u8, // total size of class-specific descriptors (LSB)
+                total_cs_descriptor_length as u8,        // total size of class-specific descriptors (LSB)
                 (total_cs_descriptor_length >> 8) as u8, // total size of class-specific descriptors (LSB)
             ],
         );
@@ -250,8 +235,8 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
                     jack_id_out_embedded,
                     0x01,                // number of input pins of this jack
                     jack_id_in_external, // id of the entity to which this pin is connected
-                    0x01, // output pin number of the entity to which this input pin is connected
-                    port_names[i], // iJack
+                    0x01,                // output pin number of the entity to which this input pin is connected
+                    port_names[i],       // iJack
                 ],
             );
             input_descriptor.push(jack_id_out_embedded).unwrap();
@@ -260,13 +245,13 @@ impl<'d, D: Driver<'d>, const N: usize> UsbMidiClass<'d, D, N> {
             alt.descriptor(
                 CS_INTERFACE,
                 &[
-                    MIDI_OUT_JACK, // l
+                    MIDI_OUT_JACK,
                     JACK_TYPE_EXTERNAL,
                     jack_id_out_external,
                     0x01,                // number of input pins of this jack
                     jack_id_in_embedded, // id of the entity to which this pin is connected
-                    0x01, // output pin number of the entity to which this input pin is connected
-                    0x00, // iJack
+                    0x01,                // output pin number of the entity to which this input pin is connected
+                    0x00,                // iJack
                 ],
             );
         }

@@ -56,10 +56,7 @@ impl UsbDeviceBuilder {
         irq: UsbInstance::Interrupt,
         dp: Dp,
         dm: Dm,
-    ) -> (
-        UsbMidiClass<Driver<UsbInstance>, 2>,
-        UsbDevice<Driver<UsbInstance>>,
-    )
+    ) -> (UsbMidiClass<Driver<UsbInstance>, 2>, UsbDevice<Driver<UsbInstance>>)
     where
         UsbInstance: Instance,
         UsbPeripheral: Peripheral<P = UsbInstance> + 'a,
