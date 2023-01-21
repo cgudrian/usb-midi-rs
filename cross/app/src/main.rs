@@ -6,16 +6,16 @@ mod usb_midi;
 
 use defmt::{debug, info, trace};
 use embassy_executor::Spawner;
-use embassy_stm32::{Config, interrupt, Peripheral};
 use embassy_stm32::time::mhz;
 use embassy_stm32::usb_otg::{DmPin, DpPin, Driver, Instance};
+use embassy_stm32::{interrupt, Config, Peripheral};
 use embassy_usb::{Builder, UsbDevice};
 use futures::future::join;
 use nom::bytes::complete::take;
 use nom::IResult;
 
-use {defmt_rtt as _, panic_probe as _};
 use crate::usb_midi::{Event, State, UsbMidiClass};
+use {defmt_rtt as _, panic_probe as _};
 
 struct UsbDeviceBuilder {
     device_descriptor: [u8; 256],
@@ -58,15 +58,15 @@ impl UsbDeviceBuilder {
         dm: Dm,
     ) -> (
         UsbMidiClass<Driver<UsbInstance>, 2>,
-        UsbDevice<Driver<UsbInstance>>
+        UsbDevice<Driver<UsbInstance>>,
     )
-        where
-            UsbInstance: Instance,
-            UsbPeripheral: Peripheral<P=UsbInstance> + 'a,
-            Dp: Peripheral + 'a,
-            Dp::P: DpPin<UsbInstance>,
-            Dm: Peripheral + 'a,
-            Dm::P: DmPin<UsbInstance>,
+    where
+        UsbInstance: Instance,
+        UsbPeripheral: Peripheral<P = UsbInstance> + 'a,
+        Dp: Peripheral + 'a,
+        Dp::P: DpPin<UsbInstance>,
+        Dm: Peripheral + 'a,
+        Dm::P: DmPin<UsbInstance>,
     {
         let driver = Driver::new_fs(usb, irq, dp, dm, &mut self.ep_out_buffer);
 
@@ -106,12 +106,7 @@ async fn main(_spawner: Spawner) {
 
     let mut usb_device_builder = UsbDeviceBuilder::new();
 
-    let (mut midi_class, mut usb) = usb_device_builder.build(
-        p.USB_OTG_FS,
-        irq,
-        p.PA12,
-        p.PA11,
-    );
+    let (mut midi_class, mut usb) = usb_device_builder.build(p.USB_OTG_FS, irq, p.PA12, p.PA11);
 
     let cables = midi_class.split_cables();
 
