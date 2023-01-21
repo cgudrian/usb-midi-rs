@@ -4,15 +4,13 @@
 
 mod usb_midi;
 
-use defmt::{debug, info, trace};
+use defmt::{info, trace};
 use embassy_executor::Spawner;
 use embassy_stm32::time::mhz;
 use embassy_stm32::usb_otg::{DmPin, DpPin, Driver, Instance};
 use embassy_stm32::{interrupt, Config, Peripheral};
 use embassy_usb::{Builder, UsbDevice};
 use futures::future::join;
-use nom::bytes::complete::take;
-use nom::IResult;
 
 use crate::usb_midi::{Event, State, UsbMidiClass};
 use {defmt_rtt as _, panic_probe as _};
@@ -105,7 +103,7 @@ async fn main(_spawner: Spawner) {
 
     let (mut midi_class, mut usb) = usb_device_builder.build(p.USB_OTG_FS, irq, p.PA12, p.PA11);
 
-    let cables = midi_class.split_cables();
+    let _cables = midi_class.split_cables();
 
     let usb_fut = usb.run();
 
