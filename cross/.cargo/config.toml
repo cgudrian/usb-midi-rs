@@ -1,8 +1,0 @@
-[target.'cfg(all(target_arch = "arm", target_os = "none"))']
-runner = "probe-run --chip STM32F439ZITx"
-
-[build]
-target = "thumbv7em-none-eabi"
-
-[env]
-DEFMT_LOG = "trace"

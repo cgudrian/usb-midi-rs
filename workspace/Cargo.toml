@@ -1,0 +1,5 @@
+[workspace]
+members = ["app", "usb-midi-rs"]
+exclude = ["embassy"]
+resolver = "2"
+
